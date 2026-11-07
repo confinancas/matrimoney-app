@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { semearInstalacaoPronta } from "./helpers/setup";
 import { marca } from "./marca";
+
+test.beforeAll(() => {
+  semearInstalacaoPronta();
+});
 
 // Cenário 12: a Abertura mostra a marca, espera a API e leva ao início.
 test("a Abertura mostra a marca e vai para /inicio quando a API responde", async ({ page }) => {

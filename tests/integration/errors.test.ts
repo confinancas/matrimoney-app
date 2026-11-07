@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { env } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/worker/app";
-import { callApi } from "./helpers/app";
+import { callApi, semearPronto } from "./helpers/app";
 
 describe("erros da API", () => {
+  beforeEach(async () => {
+    await semearPronto(env.DB);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });

@@ -5,7 +5,7 @@ import { createApp } from "../../src/worker/app";
 import { createDb } from "../../src/worker/db/client";
 import { type Meter, newMeter } from "../../src/worker/db/metered-d1";
 import { addMember, createHousehold, getHousehold } from "../../src/worker/household/repository";
-import { callApi, limparBanco } from "./helpers/app";
+import { aquecerOPortao, callApi, limparBanco, semearPronto } from "./helpers/app";
 
 const db = createDb(env.DB, newMeter());
 
@@ -55,6 +55,8 @@ const chamaComTextoCru = async (app: ReturnType<typeof createApp>, texto: string
 
 beforeEach(async () => {
   await limparBanco(env.DB);
+  // O portão deixa passar as rotas do lar só com a instalação pronta.
+  await semearPronto(env.DB);
 });
 
 describe("GET /api/household", () => {
@@ -112,6 +114,8 @@ describe("autenticação do lar", () => {
   it("sem sessão, GET e PATCH devolvem 401 nao_autenticado e não tocam no D1", async () => {
     const medidas: Meter[] = [];
     const app = createApp({ onMeter: (meter) => medidas.push({ ...meter }) });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     const get = await callApi(app, "GET", "/api/household");
     const patch = await callApi(app, "PATCH", "/api/household", { cycleStartDay: 5 });
@@ -184,6 +188,8 @@ describe("PATCH /api/household", () => {
       resolveSession: async () => ({ memberId, householdId }),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     const resposta = await callApi(app, "PATCH", "/api/household", {
       percentages: { fixos: 36, conforto: 10, educacao: 5, extras: 5, metas: 10, prazeres: 35 },
@@ -259,6 +265,8 @@ describe("PATCH /api/household", () => {
       resolveSession: async () => ({ memberId, householdId }),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     const resposta = await callApi(app, "PATCH", "/api/household", {});
 
@@ -293,6 +301,8 @@ describe("chamadas ao D1", () => {
       resolveSession: async () => ({ memberId, householdId }),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     await callApi(app, "GET", "/api/household");
     expect(medidas.at(-1)?.calls).toBe(1);
@@ -312,6 +322,8 @@ describe("chamadas ao D1", () => {
       resolveSession: async () => ({ memberId, householdId }),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     await callApi(app, "PATCH", "/api/household", { cycleStartDay: 5 });
     expect(medidas.at(-1)?.calls).toBe(3);

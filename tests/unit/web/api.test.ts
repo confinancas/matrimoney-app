@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, apiFetch, definirAcaoDaConfiguracaoPendente } from "@/lib/api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -78,5 +78,42 @@ describe("apiFetch", () => {
     const erro = await apiFetch("/api/x").catch((motivo: unknown) => motivo);
 
     expect(erro).toMatchObject({ status: 0, code: "sem_conexao", message: "Sem conexão." });
+  });
+
+  it("204 sem corpo: devolve undefined, sem erro de JSON", async () => {
+    comFetch(async () => new Response(null, { status: 204 }));
+
+    await expect(apiFetch("/api/x", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+
+  it("503 configuracao_pendente chama a ação de configuração uma vez, e lança o erro", async () => {
+    const acao = vi.fn();
+    const restaurar = definirAcaoDaConfiguracaoPendente(acao);
+    try {
+      comFetch(async () =>
+        Response.json({ error: "configuracao_pendente", message: "Configuração pendente." }, { status: 503 }),
+      );
+
+      const erro = await apiFetch("/api/x").catch((motivo: unknown) => motivo);
+
+      expect(acao).toHaveBeenCalledTimes(1);
+      expect(erro).toMatchObject({ status: 503, code: "configuracao_pendente" });
+    } finally {
+      restaurar();
+    }
+  });
+
+  it("outro 503 não leva à configuração", async () => {
+    const acao = vi.fn();
+    const restaurar = definirAcaoDaConfiguracaoPendente(acao);
+    try {
+      comFetch(async () => Response.json({ error: "anthropic_indisponivel", message: "x" }, { status: 503 }));
+
+      await apiFetch("/api/x").catch(() => undefined);
+
+      expect(acao).not.toHaveBeenCalled();
+    } finally {
+      restaurar();
+    }
   });
 });

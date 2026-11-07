@@ -142,9 +142,23 @@ function conferirTextoDoWorker(arquivo) {
   }
 }
 
+// D1 falso da checagem: responde ao estado da instalação como pronta (TASK-0102). Sem isso, o portão da configuração
+// fecharia a rota da fixture, e a checagem não chega à rota do app. Nenhuma consulta de dado real é feita aqui.
+function bancoProntoFalso() {
+  const linha = { has_key: 0, done: 1, unlocked: 0, members: 0, skipped_ai: 0 };
+  const declaracao = () => ({
+    bind: () => declaracao(),
+    all: async () => ({ results: [linha], success: true, meta: {} }),
+    first: async () => linha,
+    run: async () => ({ results: [], success: true, meta: {} }),
+    raw: async () => [Object.values(linha)],
+  });
+  return { prepare: () => declaracao(), batch: async () => [] };
+}
+
 async function conferirRotasDoWorker(arquivo, versaoDoApp) {
   const { default: worker } = await import(pathToFileURL(arquivo).href);
-  const ambienteDoWorker = { DB: {} };
+  const ambienteDoWorker = { DB: bancoProntoFalso() };
   const contexto = { waitUntil() {}, passThroughOnException() {} };
 
   const saude = await worker.fetch(new Request("http://teste.local/api/health"), ambienteDoWorker, contexto);

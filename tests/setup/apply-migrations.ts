@@ -1,5 +1,6 @@
 import { applyD1Migrations, env } from "cloudflare:test";
 import { beforeEach } from "vitest";
+import { resetSetupCacheForTests } from "../../src/worker/setup/state";
 
 await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
 
@@ -32,6 +33,8 @@ async function ordemDeEsvaziamento(): Promise<string[]> {
 }
 
 beforeEach(async () => {
+  // O portão guarda "pronto" no módulo: cada teste começa sem esse cache.
+  resetSetupCacheForTests();
   const tabelas = await ordemDeEsvaziamento();
   if (tabelas.length > 0) {
     await env.DB.batch(tabelas.map((nome) => env.DB.prepare(`DELETE FROM "${nome}"`)));

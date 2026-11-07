@@ -47,7 +47,7 @@ function lerEnv() {
     const casa = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(linha);
     if (casa) valores[casa[1]] = casa[2].replace(/^(['"])(.*)\1$/, "$2");
   }
-  const necessarias = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "MM_DEV_D1_ID"];
+  const necessarias = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "MM_DEV_D1_ID", "MM_DEV_MASTER_KEY"];
   if (necessarias.some((chave) => !valores[chave])) ausente();
   for (const chave of necessarias) valoresSecretos.push(valores[chave]);
   return valores;
@@ -61,6 +61,39 @@ function ambienteDoWrangler(env) {
     CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID,
     WRANGLER_SEND_METRICS: "false",
   };
+}
+
+// Igual ao executa, mas a entrada vai pelo stdin: o valor de um segredo nunca entra em argumento.
+function executaComEntrada(args, ambiente, entrada) {
+  return new Promise((resolver, rejeitar) => {
+    const filho = spawn(process.execPath, args, {
+      cwd: raiz,
+      env: ambiente,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let saida = "";
+    filho.stdout.on("data", (pedaco) => {
+      saida += pedaco;
+    });
+    filho.stderr.on("data", (pedaco) => {
+      saida += pedaco;
+    });
+    filho.on("error", rejeitar);
+    filho.on("close", (codigo) => resolver({ codigo, saida }));
+    filho.stdin.end(entrada);
+  });
+}
+
+// Nomes dos segredos do Worker, a partir da saída JSON do wrangler secret list.
+function nomesDeSegredos(saida) {
+  const inicio = saida.indexOf("[");
+  const fim = saida.lastIndexOf("]");
+  try {
+    return JSON.parse(saida.slice(inicio, fim + 1)).map((segredo) => segredo.name);
+  } catch {
+    falha("Não consegui ler a lista de segredos do Worker de medição.");
+  }
+  return [];
 }
 
 function executa(args, ambiente) {
@@ -194,6 +227,12 @@ async function main() {
   if (typeof pedido.task !== "string" || !Array.isArray(pedido.requests) || pedido.requests.length === 0) {
     falha('Arquivo de medição inválido: precisa de "task" e de "requests".');
   }
+  if (
+    pedido.setupSql !== undefined &&
+    !(Array.isArray(pedido.setupSql) && pedido.setupSql.every((sql) => typeof sql === "string"))
+  ) {
+    falha('Arquivo de medição inválido: "setupSql" é uma lista de comandos SQL.');
+  }
 
   const env = lerEnv();
   await confereConta(env);
@@ -211,12 +250,39 @@ async function main() {
     const urlDoWorker = casa[0];
     console.log("Deploy ok (URL mascarada nesta saída).");
 
+    // Chave mestra do Worker de medição: gravada só se faltar, nunca trocada (cifra as chaves de teste).
+    const segredos = await executa(
+      [wranglerJs, "secret", "list", "-c", cfg, "--format", "json"],
+      ambienteDoWrangler(env),
+    );
+    if (segredos.codigo !== 0) falha(`wrangler secret list falhou.\n${mascara(segredos.saida)}`);
+    if (!nomesDeSegredos(segredos.saida).includes("MASTER_KEY")) {
+      const gravacao = await executaComEntrada(
+        [wranglerJs, "secret", "put", "MASTER_KEY", "-c", cfg],
+        ambienteDoWrangler(env),
+        env.MM_DEV_MASTER_KEY,
+      );
+      if (gravacao.codigo !== 0) falha(`wrangler secret put falhou.\n${mascara(gravacao.saida)}`);
+      console.log("Chave mestra gravada no Worker de medição (valor não exibido).");
+    } else {
+      console.log("Chave mestra já existia no Worker de medição; não foi trocada.");
+    }
+
     const migracao = await executa(
       [wranglerJs, "d1", "migrations", "apply", BANCO, "-c", cfg, "--remote"],
       ambienteDoWrangler(env),
     );
     if (migracao.codigo !== 0) falha(`Migração remota falhou.\n${mascara(migracao.saida)}`);
     console.log("Migrações remotas ok.");
+
+    // Preparo opcional do estado do banco de teste (só dados [TEST]), antes do aquecimento.
+    for (const sql of pedido.setupSql ?? []) {
+      const preparo = await executa(
+        [wranglerJs, "d1", "execute", BANCO, "-c", cfg, "--remote", "--command", sql],
+        ambienteDoWrangler(env),
+      );
+      if (preparo.codigo !== 0) falha(`Preparo do banco de medição falhou.\n${mascara(preparo.saida)}`);
+    }
 
     tailFilho = spawn(process.execPath, [wranglerJs, "tail", WORKER, "--format", "json"], {
       cwd: raiz,

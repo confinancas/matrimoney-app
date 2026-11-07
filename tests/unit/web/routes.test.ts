@@ -30,6 +30,7 @@ const CONVENCAO: [string, Frame, Aba | undefined, string][] = [
   ["/configuracoes/regras", "detail", "configuracoes", "Regras"],
   ["/configuracoes/documento-ia", "detail", "configuracoes", "Documento de regras da IA"],
   ["/configuracoes/dados", "detail", "configuracoes", "Dados"],
+  ["/configuracoes/claude", "detail", "configuracoes", "Claude e assistente"],
   ["/assistente", "full", "ia", "Assistente"],
   ["/categorias/escolher", "full", "cartoes", "Escolher categoria"],
   ["/categorias/nova", "full", "cartoes", "Nova categoria"],

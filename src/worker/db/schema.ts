@@ -333,3 +333,22 @@ export const invites = sqliteTable(
     index("invites_kind_used_idx").on(t.kind, t.usedAt),
   ],
 );
+
+// Segredos das integrações (chave da IA, voz, agregador), cifrados com a chave mestra (ADR-003 e ADR-004).
+// Só o texto cifrado e o IV ficam aqui; a chave mestra é o secret MASTER_KEY do Worker.
+export const appSecrets = sqliteTable("app_secrets", {
+  name: text("name").primaryKey(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+// Liga/desliga das funções opcionais (TASK-0102). Sem linha, vale o padrão de cada função.
+export const featureFlags = sqliteTable(
+  "feature_flags",
+  {
+    name: text("name").primaryKey(),
+    enabled: integer("enabled").notNull(),
+  },
+  (t) => [check("feature_flags_enabled_ck", sql`${t.enabled} IN (0, 1)`)],
+);

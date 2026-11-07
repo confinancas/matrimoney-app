@@ -1,5 +1,10 @@
 import { expect, type Locator, type Page, type TestInfo, test } from "@playwright/test";
+import { semearInstalacaoPronta } from "./helpers/setup";
 import { marca } from "./marca";
+
+test.beforeAll(() => {
+  semearInstalacaoPronta();
+});
 
 // Moldura nas três larguras (projetos do playwright.config.ts: celular 390, tablet 834, desktop 1440).
 // As asserções mudam conforme o projeto; cada uma confere o que aquela largura deve mostrar.
@@ -60,13 +65,12 @@ test.describe("menu", () => {
     const largura = larguraDo(testInfo);
 
     if (largura === "celular") {
-      // Barra de baixo: 7 posições na ordem do manual, só ícones, Início marcado, a IA 33 px acima da barra.
+      // Barra de baixo com o assistente desligado (MVP): 6 posições na ordem do manual, só ícones, Início marcado.
       await expect(menu(page)).toBeVisible();
       expect(await rotulosDoMenu(page)).toEqual([
         "Início",
         "Cartões",
         "Contas do mês (despesas)",
-        IA,
         "Renda",
         "Relatório",
         "Configurações",
@@ -74,9 +78,7 @@ test.describe("menu", () => {
       const barra = await caixa(menu(page));
       const viewport = page.viewportSize();
       expect(Math.round(barra.y + barra.height)).toBe(viewport?.height);
-      const ia = await caixa(page.getByRole("link", { name: IA }));
-      expect(Math.round(barra.y - ia.y)).toBe(33);
-      expect(ia.width).toBe(66);
+      await expect(page.getByRole("link", { name: IA })).toHaveCount(0);
       for (const link of await menu(page).getByRole("link").all()) {
         expect((await link.textContent())?.trim() ?? "").toBe("");
       }
@@ -84,12 +86,10 @@ test.describe("menu", () => {
     }
 
     if (largura === "tablet") {
-      // Barra de 96 px com ícones, IA logo abaixo do logo, Configurações no pé.
+      // Barra de 96 px com ícones, sem a IA (assistente desligado), Configurações no pé.
       const barra = await caixa(page.locator("aside").first());
       expect(Math.round(barra.width)).toBe(96);
-      const ia = await caixa(page.getByRole("link", { name: IA }));
-      const inicio = await caixa(linkDoMenu(page, "Início"));
-      expect(ia.y).toBeLessThan(inicio.y);
+      await expect(page.getByRole("link", { name: IA })).toHaveCount(0);
       const relatorio = await caixa(linkDoMenu(page, "Relatório"));
       const configuracoes = await caixa(linkDoMenu(page, "Configurações"));
       expect(configuracoes.y).toBeGreaterThan(relatorio.y + relatorio.height);
@@ -97,13 +97,13 @@ test.describe("menu", () => {
     }
 
     if (largura === "desktop") {
-      // Barra de 252 px com nomes, cartão do Assistente, sem rodapé do lar (sem membros).
+      // Barra de 252 px com nomes, sem o cartão do Assistente (desligado), sem rodapé do lar (sem membros).
       const barra = await caixa(page.locator("aside").first());
       expect(Math.round(barra.width)).toBe(252);
       for (const nome of ABAS_SEM_IA) {
         await expect(menu(page).getByText(nome.replace(" (despesas)", ""), { exact: true })).toBeVisible();
       }
-      await expect(page.getByText("Pergunte sobre o dinheiro de vocês")).toBeVisible();
+      await expect(page.getByText("Pergunte sobre o dinheiro de vocês")).toHaveCount(0);
       await expect(page.getByText("Conta do casal")).toHaveCount(0);
     }
   });
@@ -122,9 +122,11 @@ test.describe("menu", () => {
         await expect(menu(page)).toBeVisible();
         await expect(page.locator("aside")).toHaveCount(0);
       } else {
-        await expect(page.locator("aside").first()).toBeVisible();
-        const barra = await caixa(page.locator("aside").first());
-        expect(Math.round(barra.width)).toBe(esperado === "tablet" ? 96 : 252);
+        // Espera a largura da barra chegar ao valor: a troca de moldura acontece depois do redimensionamento.
+        const larguraEsperada = esperado === "tablet" ? 96 : 252;
+        await expect
+          .poll(async () => Math.round((await page.locator("aside").first().boundingBox())?.width ?? 0))
+          .toBe(larguraEsperada);
       }
     }
   });
@@ -232,17 +234,12 @@ test.describe("menu", () => {
     }
   });
 
-  test("cenário 8: /assistente no celular não tem menu; nas outras larguras, só a IA fica marcada", async ({
-    page,
-  }, testInfo) => {
+  // Assistente desligado (MVP, ASSISTANT_AVAILABLE falso): a rota da IA não existe na tela, e leva ao início.
+  test("cenário 8: com o assistente desligado, /assistente vai para /inicio", async ({ page }) => {
     await page.goto("/assistente");
 
-    if (larguraDo(testInfo) === "celular") {
-      await expect(menu(page)).toHaveCount(0);
-    } else {
-      await expect(page.getByRole("link", { name: IA })).toHaveAttribute("aria-current", "page");
-      await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
-    }
+    await expect(page).toHaveURL(/\/inicio$/);
+    await expect(page.getByRole("heading", { name: "Início", exact: true })).toBeVisible();
   });
 
   test("cenário 11: rota desconhecida mostra Página não encontrada dentro da moldura e leva ao início", async ({
@@ -257,18 +254,13 @@ test.describe("menu", () => {
 
   test("área de toque: cada link do menu tem 44 px ou mais, e o toque perto da borda acerta o link", async ({
     page,
-  }, testInfo) => {
+  }) => {
     await page.goto("/inicio");
 
     const links = await menu(page).getByRole("link").all();
     expect(links.length).toBeGreaterThanOrEqual(6);
     for (const link of links) {
       await areaDeToqueDe(link);
-    }
-
-    if (larguraDo(testInfo) !== "celular") {
-      // Fora do celular, o botão da IA também: 66 px de círculo.
-      await areaDeToqueDe(page.getByRole("link", { name: IA }));
     }
   });
 });

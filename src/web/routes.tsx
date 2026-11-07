@@ -6,8 +6,10 @@ import { Moldura } from "./app/Moldura";
 import { NotFound } from "./app/NotFound";
 import { PlaceholderScreen } from "./app/PlaceholderScreen";
 import { Catalogo } from "./dev/Catalog";
+import { ConfiguracaoInicial } from "./screens/ConfiguracaoInicial";
 import { EscolherCategoria } from "./screens/categorias/EscolherCategoria";
 import { NovaCategoria } from "./screens/categorias/NovaCategoria";
+import { ChaveDoClaude } from "./screens/configuracoes/ChaveDoClaude";
 
 // Telas que um app põe no lugar das provisórias, pelo path da rota da tabela.
 export type TelasDoApp = Partial<Record<string, ReactNode>>;
@@ -23,7 +25,12 @@ export const ROTAS: RotaDaTabela[] = [
   { path: "/criar-conta", frame: "bare", title: "Criar conta", element: provisoria },
   { path: "/convite/:token", frame: "bare", title: "Aceitar convite", element: provisoria },
   { path: "/recuperar/:token", frame: "bare", title: "Recuperar acesso", element: provisoria },
-  { path: "/configuracao-inicial", frame: "bare", title: "Configuração inicial", element: provisoria },
+  {
+    path: "/configuracao-inicial",
+    frame: "bare",
+    title: "Configuração inicial",
+    element: <ConfiguracaoInicial />,
+  },
 
   { path: "/inicio", frame: "tab", tab: "inicio", title: "Início", element: provisoria },
   { path: "/cartoes", frame: "tab", tab: "cartoes", title: "Cartões", element: provisoria },
@@ -68,6 +75,13 @@ export const ROTAS: RotaDaTabela[] = [
     tab: "configuracoes",
     title: "Banco conectado",
     element: provisoria,
+  },
+  {
+    path: "/configuracoes/claude",
+    frame: "detail",
+    tab: "configuracoes",
+    title: "Claude e assistente",
+    element: <ChaveDoClaude />,
   },
   {
     path: "/configuracoes/categorias",

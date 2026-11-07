@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { semearInstalacaoPronta } from "./helpers/setup";
 import { marca } from "./marca";
+
+test.beforeAll(() => {
+  semearInstalacaoPronta();
+});
 
 // Cenário 13: o app é instalável, o service worker registra e a moldura abre offline do cache.
 

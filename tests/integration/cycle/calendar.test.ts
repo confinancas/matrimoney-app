@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { addDays, type Ciclo, cycleForDate } from "../../../src/shared/cycle";
 import { createApp } from "../../../src/worker/app";
 import { assignCycleKeysStmts } from "../../../src/worker/cycle/assign";
@@ -12,12 +12,16 @@ import {
 } from "../../../src/worker/cycle/calendar";
 import { createDb, type Db } from "../../../src/worker/db/client";
 import { type Meter, newMeter } from "../../../src/worker/db/metered-d1";
-import { callApi } from "../helpers/app";
+import { aquecerOPortao, callApi, semearPronto } from "../helpers/app";
 
 const AGORA = "2026-11-10T12:00:00.000Z";
 const HOJE = "2026-11-07";
 
 const dbComMedidor = (medidor: Meter = newMeter()): Db => createDb(env.DB, medidor);
+
+beforeEach(async () => {
+  await semearPronto(env.DB);
+});
 
 // D1 que conta os parâmetros de cada comando (sem mudar o que executa). O teste de custo lê o maior número.
 function d1Espiado(registro: { maiorComando: number }): D1Database {
@@ -284,6 +288,8 @@ describe("PATCH /api/household com mudança do dia de início", () => {
       agora: () => new Date("2026-11-07T15:00:00.000Z"),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     const resposta = await callApi(app, "PATCH", "/api/household", { cycleStartDay: 5 });
 
@@ -308,6 +314,8 @@ describe("PATCH /api/household com mudança do dia de início", () => {
       agora: () => new Date("2026-11-07T15:00:00.000Z"),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
     const antes = await calendarioDoBanco(householdId);
 
     const resposta = await callApi(app, "PATCH", "/api/household", { cycleStartDay: 11 });
@@ -325,6 +333,8 @@ describe("PATCH /api/household com mudança do dia de início", () => {
       agora: () => new Date("2026-11-07T15:00:00.000Z"),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
 
     await callApi(app, "PATCH", "/api/household", {
       percentages: { fixos: 40, conforto: 10, educacao: 5, extras: 5, metas: 10, prazeres: 10 },
@@ -412,6 +422,8 @@ describe("custo pelo Meter", () => {
       agora: () => new Date("2026-11-07T15:00:00.000Z"),
       onMeter: (meter) => medidas.push({ ...meter }),
     });
+    await aquecerOPortao(app);
+    medidas.length = 0;
     const ctx = {
       waitUntil: () => undefined,
       passThroughOnException: () => undefined,

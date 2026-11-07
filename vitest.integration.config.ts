@@ -6,6 +6,9 @@ import { defineConfig } from "vitest/config";
 export const compatibilityDate = "2026-10-15";
 export const compatibilityFlags = ["nodejs_compat"];
 
+// Chave mestra de teste (falsa, fixa): só existe neste arquivo e no E2E. Nunca cifra dado real.
+export const CHAVE_MESTRA_DE_TESTE = "DRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+Y=";
+
 const pastaDeMigracoes = fileURLToPath(new URL("./migrations", import.meta.url));
 
 export default defineConfig({
@@ -16,7 +19,10 @@ export default defineConfig({
         compatibilityDate,
         compatibilityFlags,
         d1Databases: ["DB"],
-        bindings: { TEST_MIGRATIONS: await readD1Migrations(pastaDeMigracoes) },
+        bindings: {
+          TEST_MIGRATIONS: await readD1Migrations(pastaDeMigracoes),
+          MASTER_KEY: CHAVE_MESTRA_DE_TESTE,
+        },
       },
     })),
   ],

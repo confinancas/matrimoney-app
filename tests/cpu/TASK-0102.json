@@ -1,0 +1,36 @@
+{
+  "task": "TASK-0102",
+  "setupSql": [
+    "DELETE FROM app_secrets",
+    "DELETE FROM feature_flags",
+    "DELETE FROM invites",
+    "INSERT INTO invites (id, household_id, kind, token_hash, created_at, used_at) VALUES ('cpu-0102-primeiro-acesso', NULL, 'primeiro_acesso', '7a645eb78586d5ccd7fc56055f8fa13966cdcd43eb2483c7be208c1fc5b93fb7', '2026-11-07T00:00:00.000Z', NULL)"
+  ],
+  "requests": [
+    {
+      "name": "GET /api/setup/status",
+      "method": "GET",
+      "path": "/api/setup/status"
+    },
+    {
+      "name": "POST /api/setup/unlock",
+      "method": "POST",
+      "path": "/api/setup/unlock",
+      "body": {
+        "code": "TEST-TEST-TEST"
+      }
+    },
+    {
+      "name": "POST /api/setup/keys/claude",
+      "method": "POST",
+      "path": "/api/setup/keys/claude",
+      "headers": {
+        "cookie": "mm_setup=TESTTESTTEST"
+      },
+      "body": {
+        "apiKey": "sk-ant-api03-TEST-invalida",
+        "assistente": false
+      }
+    }
+  ]
+}

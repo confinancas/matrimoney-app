@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { semearInstalacaoPronta } from "./helpers/setup";
+
+test.beforeAll(() => {
+  semearInstalacaoPronta();
+});
 
 test("a Abertura leva ao início, dentro da moldura", async ({ page }) => {
   await page.goto("/");

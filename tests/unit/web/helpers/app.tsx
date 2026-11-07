@@ -7,7 +7,7 @@ import { criarRotas } from "@/routes";
 export function renderizarApp({ rota, assistente = true }: { rota: InitialEntry; assistente?: boolean }) {
   const roteador = createMemoryRouter(criarRotas(), { initialEntries: [rota] });
   const resultado = render(
-    <FeaturesProvider valores={{ assistente }}>
+    <FeaturesProvider valores={{ ia: false, assistente, voz: false }}>
       <RouterProvider router={roteador} />
     </FeaturesProvider>,
   );

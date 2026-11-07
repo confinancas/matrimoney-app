@@ -153,3 +153,32 @@ export function IconeEngrenagem(props: Props) {
     </Svg>
   );
 }
+
+// Garantias do painel verde da entrada (LoginDesktop.dc.html): cadeado, duas pessoas e escudo com marca de verificação.
+export function IconeCadeado(props: Props) {
+  return (
+    <Svg {...props}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </Svg>
+  );
+}
+
+export function IconePessoas(props: Props) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="8" r="3.2" />
+      <circle cx="16.5" cy="9" r="2.6" />
+      <path d="M3 20c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4M15 14.8c2.6.1 4.6 1.9 5.2 5.2" />
+    </Svg>
+  );
+}
+
+export function IconeEscudo(props: Props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z" />
+      <path d="M9 12l2.2 2.2L15.5 10" />
+    </Svg>
+  );
+}

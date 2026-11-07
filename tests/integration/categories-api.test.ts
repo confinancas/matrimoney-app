@@ -5,7 +5,7 @@ import { createApp } from "../../src/worker/app";
 import { createDb } from "../../src/worker/db/client";
 import { type Meter, newMeter } from "../../src/worker/db/metered-d1";
 import { createHousehold } from "../../src/worker/household/repository";
-import { callApi, limparBanco } from "./helpers/app";
+import { aquecerOPortao, callApi, limparBanco, semearPronto } from "./helpers/app";
 
 type App = ReturnType<typeof createApp>;
 
@@ -74,6 +74,10 @@ const SEMPRE_VALIDA = {
 
 beforeEach(async () => {
   await limparBanco(env.DB);
+  // Instalação pronta, para o portão deixar passar as rotas; o aquecimento põe "pronto" no cache,
+  // assim as medidas de D1 contam só o que a rota faz.
+  await semearPronto(env.DB);
+  await aquecerOPortao(createApp({}));
 });
 
 describe("GET /api/categories: semente", () => {

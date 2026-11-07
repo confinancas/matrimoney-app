@@ -102,7 +102,7 @@ export function standardCycle(data: string, dia: number): Ciclo {
 }
 
 // Ciclo seguinte ao que termina em `fimAnterior`, com o dia de início `dia`. Com o mesmo dia, é o ciclo padrão;
-// com dia novo, é o ciclo de transição. Transição mínima (Gustavo, 2026-11-07): nenhum ciclo tem menos de 15 dias.
+// com dia novo, é o ciclo de transição. Transição mínima (decisão de 2026-11-07): nenhum ciclo tem menos de 15 dias.
 // Se a transição daria menos, ela termina no dia de início do mês seguinte ao primeiro fim, menos um, e emenda
 // com o ciclo seguinte (o mês do meio fica sem chave).
 export function cycleAfter(fimAnterior: string, dia: number): Ciclo {

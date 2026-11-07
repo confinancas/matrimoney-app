@@ -192,7 +192,7 @@ describe("transições do dia de início", () => {
     expect(totalDays(transicao)).toBe(58);
   });
 
-  // Transição mínima (Gustavo, 2026-11-07): a fórmula dava 3 dias (de 28/11 a 30/11). Agora emenda com o seguinte.
+  // Transição mínima (decisão de 2026-11-07): a fórmula dava 3 dias (de 28/11 a 30/11). Agora emenda com o seguinte.
   it("28 → 1: a transição vai de 28/11 a 31/12 (chave 2026-11); 2026-12 não existe e 01/01 abre 2027-01", () => {
     const padrao = standardCycle("2026-11-07", 28);
     expect(padrao).toEqual({ key: "2026-10", startsOn: "2026-10-28", endsOn: "2026-11-27" });

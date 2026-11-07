@@ -131,7 +131,7 @@ export function CategoryForm({
 
           <div role="radiogroup" aria-label="Cor" className="flex flex-col gap-2.5">
             <span className="text-[13px] text-ink-2">Cor</span>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="grid grid-cols-6 gap-2 tablet:gap-x-1">
               {CATEGORY_PALETTE.map((paleta) => {
                 const marcada = paleta.cor === cor;
                 return (
@@ -188,14 +188,14 @@ export function CategoryForm({
         </section>
       </div>
 
-      <footer className="mt-auto border-t border-divider bg-card px-4 pt-3 pb-7 tablet:px-6 tablet:pt-3.5 tablet:pb-[18px]">
+      <footer className="mt-auto border-t border-divider bg-card px-4 pt-3 pb-7 tablet:flex tablet:justify-end tablet:px-6 tablet:pt-3.5 tablet:pb-[18px]">
         {erros.defaultSpendType && <p className="mb-3 text-[13px] text-danger">{erros.defaultSpendType}</p>}
         {erroGeral && (
           <p role="alert" className="mb-3 text-center text-[13px] text-danger">
             {erroGeral}
           </p>
         )}
-        <Button type="submit" full loading={enviando} className="tablet:ml-auto tablet:w-[360px]">
+        <Button type="submit" full loading={enviando} className="tablet:w-[360px]">
           {textoBotao}
         </Button>
       </footer>

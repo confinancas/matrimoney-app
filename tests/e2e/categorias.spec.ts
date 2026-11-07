@@ -148,3 +148,47 @@ test("cenário 12: com a API fora, mostra o erro e Tentar de novo carrega a list
   await page.getByRole("button", { name: "Tentar de novo", exact: true }).click();
   await expect(page.getByRole("radio", { name: "Mercado", exact: true })).toBeVisible();
 });
+
+const CORES = [
+  "Roxo",
+  "Lavanda",
+  "Ciano",
+  "Verde",
+  "Turquesa",
+  "Laranja",
+  "Rosa",
+  "Lilás",
+  "Rosa claro",
+  "Azul",
+  "Areia",
+  "Cinza",
+];
+
+// Rodapé do formulário: "Criar categoria" encostado à direita em tablet e desktop, como no protótipo (flex-end).
+test("formulário: 'Criar categoria' encostado à direita do rodapé em 834 e 1440", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "celular", "o rodapé do celular é de largura total");
+  await simularApi(page);
+  await page.goto("/categorias/nova");
+
+  const botao = page.getByRole("button", { name: "Criar categoria", exact: true });
+  await expect(botao).toBeVisible();
+  const caixa = await botao.boundingBox();
+  const largura = page.viewportSize()?.width ?? 0;
+  expect((caixa?.x ?? 0) + (caixa?.width ?? 0)).toBeGreaterThanOrEqual(largura - 40);
+});
+
+// Grade de cores em tablet: cada alvo com pelo menos 44 × 44 px (o alvo é o rótulo; o rádio nativo é sr-only).
+test("formulário em 834: cada cor tem alvo de pelo menos 44 × 44 px", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "a grade de cores é medida na largura de tablet");
+  await simularApi(page);
+  await page.goto("/categorias/nova");
+
+  for (const nome of CORES) {
+    const alvo = page.getByRole("radio", { name: nome, exact: true }).locator("xpath=..");
+    const caixa = await alvo.boundingBox();
+    expect(caixa?.width ?? 0, `largura de ${nome}`).toBeGreaterThanOrEqual(44);
+    expect(caixa?.height ?? 0, `altura de ${nome}`).toBeGreaterThanOrEqual(44);
+  }
+});

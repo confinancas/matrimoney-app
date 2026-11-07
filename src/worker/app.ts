@@ -1,5 +1,6 @@
 import { type Context, Hono } from "hono";
 import type { BrandConfig } from "../shared/brand/types";
+import { categoriesRoutes } from "./categories/routes";
 import { createDb } from "./db/client";
 import { type Meter, newMeter } from "./db/metered-d1";
 import type { AppEnv } from "./env";
@@ -54,6 +55,7 @@ export function createApp(options: AppOptions = {}): Hono<AppEnv> {
   options.rotasDoApp?.(app);
   app.route("/", healthRoute);
   app.route("/household", householdRoutes(options.resolveSession ?? noSession, options.agora));
+  app.route("/categories", categoriesRoutes(options.resolveSession ?? noSession, options.agora));
 
   app.notFound((c) => apiError(c, 404, "rota_inexistente", "Rota não encontrada."));
 

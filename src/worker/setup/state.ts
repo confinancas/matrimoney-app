@@ -12,8 +12,9 @@ import { apiError } from "../http/errors";
 
 export const COOKIE_DA_CONFIGURACAO = "mm_setup";
 
-// Rotas que respondem fora de pronto: a saúde da API e tudo de /api/setup (a configuração inicial).
-export const SETUP_OPEN_ROUTES = ["GET /api/health", "/api/setup/*"] as const;
+// Rotas que respondem fora de pronto: é a única lista que o portão consulta para isso.
+// Entrada "MÉTODO /caminho" (exata) ou "/prefixo/*" (qualquer método). A TASK-0108 acrescenta "/api/restore/*" aqui.
+export const SETUP_OPEN_ROUTES: string[] = ["GET /api/health", "/api/setup/*"];
 
 export type EstadoDaConfiguracao = {
   mode: SetupMode;
@@ -63,9 +64,13 @@ export function resetSetupCacheForTests(): void {
   prontoNoCache = false;
 }
 
+// Decide pela lista SETUP_OPEN_ROUTES, e por mais nada.
 export function rotaAbertaNaConfiguracao(metodo: string, caminho: string): boolean {
-  if (metodo === "GET" && caminho === "/api/health") return true;
-  return caminho.startsWith("/api/setup/");
+  return SETUP_OPEN_ROUTES.some((entrada) => {
+    if (entrada.endsWith("/*")) return caminho.startsWith(entrada.slice(0, -1));
+    const [metodoDaEntrada, caminhoDaEntrada] = entrada.split(" ");
+    return metodo === metodoDaEntrada && caminho === caminhoDaEntrada;
+  });
 }
 
 // Em pronto: /api/setup/* responde 409, salvo GET /api/setup/status. Fora de pronto: só as rotas abertas.

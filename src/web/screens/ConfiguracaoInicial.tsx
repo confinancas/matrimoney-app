@@ -258,7 +258,7 @@ export function ConfiguracaoInicial() {
   }
 
   return (
-    <AccessLayout steps={{ current: 3, total: 3, label: "Como começar" }}>
+    <AccessLayout steps={{ current: 3, total: 3, label: "Como começar" }} sobreposto={false}>
       <div className="flex flex-col gap-1.5">
         <h1 className="text-[32px] font-extrabold tracking-[-0.5px]">Tudo pronto para começar</h1>
         <p className="text-[14px] leading-normal text-ink-2">

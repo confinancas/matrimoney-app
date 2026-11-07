@@ -34,6 +34,16 @@ async function digitaOCodigo(page: Page) {
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
 }
 
+// Cor computada branca com a opacidade dada, em rgb(a) ou oklab (o Chromium computa text-white/82 em oklab).
+function ehBrancoComOpacidade(cor: string, opacidade: number): boolean {
+  const rgb = /^rgba?\(255, 255, 255(?:, ([\d.]+))?\)$/.exec(cor);
+  if (rgb) return Math.abs(Number(rgb[1] ?? 1) - opacidade) < 0.01;
+  const oklab = /^oklab\(([\d.]+) ([-\d.e]+) ([-\d.e]+) \/ ([\d.]+)\)$/.exec(cor);
+  if (!oklab) return false;
+  const [l, a, b, alfa] = oklab.slice(1).map(Number) as [number, number, number, number];
+  return l > 0.99 && Math.abs(a) < 0.01 && Math.abs(b) < 0.01 && Math.abs(alfa - opacidade) < 0.01;
+}
+
 async function chegaAoPassoDaChave(page: Page) {
   await page.goto("/configuracao-inicial");
   await digitaOCodigo(page);
@@ -155,4 +165,44 @@ test("cenário 17: continuar sem IA pede confirmação dentro da tela e vai para
 
   await expect(page.getByText("Sem IA por enquanto. Dá para colar a chave em Configurações.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Tudo pronto para começar" })).toBeVisible();
+});
+
+// Celular e tablet: a barra de passos fica dentro do topo verde, com texto branco (contraste sobre o verde).
+// No desktop o painel verde é outro (à esquerda) e a barra fica na coluna do formulário, como antes.
+test("a barra de passos fica dentro do topo verde, com texto branco, no celular e no tablet", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "desktop", "no desktop a barra fica na coluna do formulário");
+  await chegaAoPassoDaChave(page);
+
+  const topo = page.locator("header").first();
+  const barra = page.getByText("Passo 2 de 3 · Chave do Claude", { exact: true });
+  const caixaDoTopo = await topo.boundingBox();
+  const caixaDaBarra = await barra.boundingBox();
+  expect(caixaDoTopo).not.toBeNull();
+  expect(caixaDaBarra).not.toBeNull();
+  if (!caixaDoTopo || !caixaDaBarra) return;
+  expect(caixaDaBarra.y).toBeGreaterThanOrEqual(caixaDoTopo.y);
+  expect(caixaDaBarra.y + caixaDaBarra.height).toBeLessThanOrEqual(caixaDoTopo.y + caixaDoTopo.height);
+
+  const cor = await barra.evaluate((elemento) => getComputedStyle(elemento).color);
+  expect(ehBrancoComOpacidade(cor, 0.82)).toBe(true);
+});
+
+test("no passo 3, sem cartão, o título fica abaixo do topo verde e não encosta na borda", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "desktop", "no desktop não há topo verde");
+  await chegaAoPassoDaChave(page);
+  await page.getByLabel(CAMPO_DA_CHAVE).fill(CHAVE_VALIDA);
+  await page.getByRole("button", { name: "Testar e salvar" }).click();
+  const titulo = page.getByRole("heading", { name: "Tudo pronto para começar" });
+  await expect(titulo).toBeVisible();
+
+  const topo = await page.locator("header").first().boundingBox();
+  const caixaDoTitulo = await titulo.boundingBox();
+  expect(topo).not.toBeNull();
+  expect(caixaDoTitulo).not.toBeNull();
+  if (!topo || !caixaDoTitulo) return;
+  expect(caixaDoTitulo.y).toBeGreaterThanOrEqual(topo.y + topo.height + 16);
 });

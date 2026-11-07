@@ -76,7 +76,7 @@ export function ChaveDoClaude({ assistenteDisponivel = ASSISTANT_AVAILABLE }: Pr
       <div className="px-4 tablet:px-6">
         <div className="mx-auto flex max-w-[640px] flex-col gap-4">
           {falha ? (
-            falha.code === "chave_mestra_ausente" || falha.status === 500 ? (
+            falha.code === "chave_mestra_ausente" ? (
               <Card overlap role="alert">
                 <p className="text-[14px] text-ink-2">{MENSAGEM_CHAVE_MESTRA}</p>
               </Card>

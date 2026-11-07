@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SetupStatus } from "../../src/shared/setup";
 import { createApp } from "../../src/worker/app";
 import { ChaveDaIaError, type ValidacaoDaChave } from "../../src/worker/providers/anthropic";
+import { SETUP_OPEN_ROUTES } from "../../src/worker/setup/state";
 import { CODIGO_DE_TESTE, COOKIE_DE_TESTE, callApi, semearPrimeiroAcesso, semearPronto } from "./helpers/app";
 
 // Chave falsa do teste: nenhum teste fala com a Anthropic. Os testes procuram este texto em respostas e logs.
@@ -428,5 +429,56 @@ describe("portão da configuração", () => {
     const resposta = await callApi(criarApp(), "GET", "/api/health");
 
     expect(resposta.status).toBe(200);
+  });
+});
+
+// O portão decide pela lista SETUP_OPEN_ROUTES, e por mais nada (a TASK-0108 só acrescenta /api/restore/* nela).
+describe("SETUP_OPEN_ROUTES: o portão decide pela lista", () => {
+  it("uma rota acrescentada à lista responde fora de pronto; fora da lista, a mesma rota dá 503", async () => {
+    await semearPrimeiroAcesso(env.DB, false);
+    const app = createApp({
+      validateClaudeKey: CHAVE_VALIDA_OK,
+      rotasDoApp: (rotas) => {
+        rotas.get("/teste-aberto", (c) => c.json({ aberta: true }));
+      },
+    });
+    expect((await callApi(app, "GET", "/api/teste-aberto")).status).toBe(503);
+
+    SETUP_OPEN_ROUTES.push("GET /api/teste-aberto");
+    try {
+      const resposta = await callApi(app, "GET", "/api/teste-aberto");
+      expect(resposta.status).toBe(200);
+      expect(await resposta.json()).toEqual({ aberta: true });
+    } finally {
+      SETUP_OPEN_ROUTES.splice(SETUP_OPEN_ROUTES.indexOf("GET /api/teste-aberto"), 1);
+    }
+    expect((await callApi(app, "GET", "/api/teste-aberto")).status).toBe(503);
+  });
+
+  it("um prefixo acrescentado à lista abre as rotas dele, em qualquer método", async () => {
+    await semearPrimeiroAcesso(env.DB, false);
+    const app = createApp({
+      validateClaudeKey: CHAVE_VALIDA_OK,
+      rotasDoApp: (rotas) => {
+        rotas.post("/teste-prefixo/itens", (c) => c.json({ ok: true }));
+      },
+    });
+    expect((await callApi(app, "POST", "/api/teste-prefixo/itens")).status).toBe(503);
+
+    SETUP_OPEN_ROUTES.push("/api/teste-prefixo/*");
+    try {
+      expect((await callApi(app, "POST", "/api/teste-prefixo/itens")).status).toBe(200);
+    } finally {
+      SETUP_OPEN_ROUTES.splice(SETUP_OPEN_ROUTES.indexOf("/api/teste-prefixo/*"), 1);
+    }
+  });
+
+  it("a lista de origem vale: a saúde do GET, as rotas de setup e nada mais", async () => {
+    await semearPrimeiroAcesso(env.DB, false);
+    const app = criarApp();
+    expect((await callApi(app, "GET", "/api/health")).status).toBe(200);
+    expect((await callApi(app, "POST", "/api/health")).status).toBe(503);
+    expect((await callApi(app, "GET", "/api/setup/status")).status).toBe(200);
+    expect((await callApi(app, "GET", "/api/features")).status).toBe(503);
   });
 });

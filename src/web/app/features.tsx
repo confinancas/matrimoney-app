@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import type { FeaturesResponse } from "../../shared/setup";
 import { apiFetch } from "../lib/api";
 
@@ -8,31 +8,37 @@ export type Features = FeaturesResponse;
 export const FEATURES_PADRAO: Features = { ia: false, assistente: false, voz: false };
 
 const Contexto = createContext<Features>(FEATURES_PADRAO);
+const AtualizacaoDeFeatures = createContext<() => void>(() => undefined);
 
-// Sem "valores", lê GET /api/features ao montar e mantém o último valor se a leitura falhar.
+// Sem "valores", lê GET /api/features ao montar e a cada useAtualizarFeatures(); se a leitura falha, mantém o último valor.
 // Com "valores" (testes e telas de desenvolvimento), não lê nada.
 export function FeaturesProvider({ valores, children }: { valores?: Features; children: ReactNode }) {
   const [lidas, setLidas] = useState<Features>(FEATURES_PADRAO);
 
+  // Lê GET /api/features. Se a leitura falha, o último valor fica como está.
+  const ler = useCallback(() => {
+    apiFetch<Features>("/api/features").then(setLidas, () => {
+      // Mantém o último valor: uma falha de leitura não zera o que já se sabia.
+    });
+  }, []);
+
   useEffect(() => {
     if (valores) return;
-    let cancelado = false;
-    apiFetch<Features>("/api/features").then(
-      (funcoes) => {
-        if (!cancelado) setLidas(funcoes);
-      },
-      () => {
-        // Mantém o último valor: sem a leitura, as funções seguem escondidas.
-      },
-    );
-    return () => {
-      cancelado = true;
-    };
-  }, [valores]);
+    ler();
+  }, [valores, ler]);
 
-  return <Contexto.Provider value={valores ?? lidas}>{children}</Contexto.Provider>;
+  return (
+    <AtualizacaoDeFeatures.Provider value={ler}>
+      <Contexto.Provider value={valores ?? lidas}>{children}</Contexto.Provider>
+    </AtualizacaoDeFeatures.Provider>
+  );
 }
 
 export function useFeatures(): Features {
   return useContext(Contexto);
+}
+
+// Relê GET /api/features (a TASK-0104 chama depois de entrar).
+export function useAtualizarFeatures(): () => void {
+  return useContext(AtualizacaoDeFeatures);
 }

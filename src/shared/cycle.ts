@@ -85,10 +85,10 @@ export function addMonthsClamped(data: string, meses: number): string {
   return ymd(anoNovo, mesNovo, Math.min(dia, daysInMonth(anoNovo, mesNovo)));
 }
 
-// Ciclo que começa em `inicio`: termina no dia do início do mês seguinte, menos um. A chave é o mês do início.
-function cicloQueComeca(inicio: string, dia: number): Ciclo {
+// Ciclo que começa em `inicio` e termina no dia `dia` do mês que está `meses` depois, menos um. A chave é o mês do início.
+function cicloQueComeca(inicio: string, dia: number, meses: number): Ciclo {
   const [ano, mes] = partes(inicio);
-  const fim = addDays(ymd(ano, mes + 1, dia), -1);
+  const fim = addDays(ymd(ano, mes + meses, dia), -1);
   return { key: inicio.slice(0, 7), startsOn: inicio, endsOn: fim };
 }
 
@@ -98,15 +98,20 @@ export function standardCycle(data: string, dia: number): Ciclo {
   exigeDiaDeInicio(dia);
   const [ano, mes, diaDaData] = partes(data);
   const inicio = diaDaData >= dia ? ymd(ano, mes, dia) : ymd(ano, mes - 1, dia);
-  return cicloQueComeca(inicio, dia);
+  return cicloQueComeca(inicio, dia, 1);
 }
 
 // Ciclo seguinte ao que termina em `fimAnterior`, com o dia de início `dia`. Com o mesmo dia, é o ciclo padrão;
-// com dia novo, é o ciclo de transição.
+// com dia novo, é o ciclo de transição. Transição mínima (Gustavo, 2026-11-07): nenhum ciclo tem menos de 15 dias.
+// Se a transição daria menos, ela termina no dia de início do mês seguinte ao primeiro fim, menos um, e emenda
+// com o ciclo seguinte (o mês do meio fica sem chave).
 export function cycleAfter(fimAnterior: string, dia: number): Ciclo {
   exigeData(fimAnterior);
   exigeDiaDeInicio(dia);
-  return cicloQueComeca(addDays(fimAnterior, 1), dia);
+  const inicio = addDays(fimAnterior, 1);
+  const ciclo = cicloQueComeca(inicio, dia, 1);
+  const dias = daysBetween(ciclo.startsOn, ciclo.endsOn) + 1;
+  return dias < 15 ? cicloQueComeca(inicio, dia, 2) : ciclo;
 }
 
 // Ciclo anterior ao que começa em `inicioSeguinte`: termina no dia antes dele e começa no dia `dia` do mês anterior.

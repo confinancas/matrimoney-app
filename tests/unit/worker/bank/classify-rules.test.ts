@@ -36,6 +36,7 @@ function linha(extra: Partial<LinhaClassificavel> & { id: string }): LinhaClassi
     removed_at: null,
     categorized_by: null,
     categorized_at: null,
+    rule_id: null,
     income_kind: null,
     income_subtype: null,
     local_date: "2026-11-05",

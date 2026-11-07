@@ -7,6 +7,8 @@ import { NotFound } from "./app/NotFound";
 import { PlaceholderScreen } from "./app/PlaceholderScreen";
 import { Catalogo } from "./dev/Catalog";
 import { ConfiguracaoInicial } from "./screens/ConfiguracaoInicial";
+import { EscolherCategoria } from "./screens/categorias/EscolherCategoria";
+import { NovaCategoria } from "./screens/categorias/NovaCategoria";
 import { ChaveDoClaude } from "./screens/configuracoes/ChaveDoClaude";
 
 // Telas que um app põe no lugar das provisórias, pelo path da rota da tabela.
@@ -124,9 +126,15 @@ export const ROTAS: RotaDaTabela[] = [
     frame: "full",
     tab: "cartoes",
     title: "Escolher categoria",
-    element: provisoria,
+    element: <EscolherCategoria />,
   },
-  { path: "/categorias/nova", frame: "full", tab: "cartoes", title: "Nova categoria", element: provisoria },
+  {
+    path: "/categorias/nova",
+    frame: "full",
+    tab: "cartoes",
+    title: "Nova categoria",
+    element: <NovaCategoria />,
+  },
 
   { path: "/contas/nova", frame: "full", tab: "contas", title: "Nova conta fixa", element: provisoria },
   {

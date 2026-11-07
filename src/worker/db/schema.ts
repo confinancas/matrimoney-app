@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  type AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Lar: um por instalação. Os percentuais são as colunas dos seis tipos de gasto planejados; investimentos é a sobra.
 export const households = sqliteTable(
@@ -274,6 +283,29 @@ export const cycles = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.householdId, t.key] }),
     index("cycles_household_starts_idx").on(t.householdId, t.startsOn),
+  ],
+);
+
+// Categorias do lar (TASK-0301). parent_id aponta para uma principal do mesmo lar (um nível só, validado na API).
+// A semente de um lar sem categorias entra na primeira leitura (ids seed:<householdId>:<slug>).
+export const categories = sqliteTable(
+  "categories",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id),
+    name: text("name").notNull(),
+    color: text("color").notNull(),
+    parentId: text("parent_id").references((): AnySQLiteColumn => categories.id),
+    defaultSpendType: text("default_spend_type"),
+    aiHint: text("ai_hint"),
+    sort: integer("sort").notNull().default(0),
+    archivedAt: text("archived_at"),
+  },
+  (t) => [
+    index("categories_household_archived_idx").on(t.householdId, t.archivedAt),
+    index("categories_household_parent_idx").on(t.householdId, t.parentId),
   ],
 );
 

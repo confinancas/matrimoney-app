@@ -33,8 +33,15 @@
     {
       "idx": 4,
       "version": "6",
-      "when": 1794040658446,
-      "tag": "0004_app_secrets",
+      "when": 1794041399844,
+      "tag": "0004_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794074384676,
+      "tag": "0005_app_secrets",
       "breakpoints": true
     }
   ]

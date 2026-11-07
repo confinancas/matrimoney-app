@@ -192,13 +192,59 @@ describe("transições do dia de início", () => {
     expect(totalDays(transicao)).toBe(58);
   });
 
-  // Desvio registrado no arquivo da task: a spec dá 16 a 59 dias, mas a fórmula dela dá 3 aqui (de 28/11 a 30/11).
-  it("28 → 1: a fórmula da spec dá um ciclo de transição curto (3 dias em novembro de 2026)", () => {
+  // Transição mínima (Gustavo, 2026-11-07): a fórmula dava 3 dias (de 28/11 a 30/11). Agora emenda com o seguinte.
+  it("28 → 1: a transição vai de 28/11 a 31/12 (chave 2026-11); 2026-12 não existe e 01/01 abre 2027-01", () => {
     const padrao = standardCycle("2026-11-07", 28);
     expect(padrao).toEqual({ key: "2026-10", startsOn: "2026-10-28", endsOn: "2026-11-27" });
     const transicao = cycleAfter(padrao.endsOn, 1);
-    expect(transicao).toEqual({ key: "2026-11", startsOn: "2026-11-28", endsOn: "2026-11-30" });
-    expect(totalDays(transicao)).toBe(3);
+    expect(transicao).toEqual({ key: "2026-11", startsOn: "2026-11-28", endsOn: "2026-12-31" });
+    expect(totalDays(transicao)).toBe(34);
+    expect(cycleAfter(transicao.endsOn, 1)).toEqual({
+      key: "2027-01",
+      startsOn: "2027-01-01",
+      endsOn: "2027-01-31",
+    });
+  });
+
+  it("28 → 1 em fevereiro de ano comum (2026) e bissexto (2028): a transição começa em 28/02 e vai até 31/03", () => {
+    const comum = cycleAfter("2026-02-27", 1);
+    expect(comum).toEqual({ key: "2026-02", startsOn: "2026-02-28", endsOn: "2026-03-31" });
+    expect(totalDays(comum)).toBe(32);
+    expect(cycleAfter("2026-03-31", 1)).toEqual({
+      key: "2026-04",
+      startsOn: "2026-04-01",
+      endsOn: "2026-04-30",
+    });
+
+    const bissexto = cycleAfter("2028-02-27", 1);
+    expect(bissexto).toEqual({ key: "2028-02", startsOn: "2028-02-28", endsOn: "2028-03-31" });
+    expect(totalDays(bissexto)).toBe(33);
+    expect(cycleAfter("2028-03-31", 1)).toEqual({
+      key: "2028-04",
+      startsOn: "2028-04-01",
+      endsOn: "2028-04-30",
+    });
+  });
+
+  // Limite: "menos de 15". 20 → 5 tem 15 dias e fica como está; 20 → 4 tem 14 e emenda com o seguinte.
+  it("20 → 5 tem 15 dias e fica como está; 20 → 4 tem 14 dias e emenda até 03/01/2027", () => {
+    expect(cycleAfter("2026-11-19", 5)).toEqual({
+      key: "2026-11",
+      startsOn: "2026-11-20",
+      endsOn: "2026-12-04",
+    });
+    expect(totalDays(cycleAfter("2026-11-19", 5))).toBe(15);
+    expect(cycleAfter("2026-11-19", 4)).toEqual({
+      key: "2026-11",
+      startsOn: "2026-11-20",
+      endsOn: "2027-01-03",
+    });
+    expect(totalDays(cycleAfter("2026-11-19", 4))).toBe(45);
+    expect(cycleAfter("2027-01-03", 4)).toEqual({
+      key: "2027-01",
+      startsOn: "2027-01-04",
+      endsOn: "2027-02-03",
+    });
   });
 
   it("nas transições da spec, as chaves são únicas e os ciclos são contíguos, em cadeia de 6", () => {
@@ -238,6 +284,51 @@ describe("transições do dia de início", () => {
       startsOn: "2026-12-11",
       endsOn: "2027-01-04",
     });
+  });
+});
+
+const mesmoCiclo = (a: Ciclo, b: Ciclo): boolean =>
+  a.key === b.key && a.startsOn === b.startsOn && a.endsOn === b.endsOn;
+
+describe("transição mínima: a varredura exaustiva", () => {
+  it("para todo dia antigo × dia novo (28 × 27) e todo mês de início de 2026 a 2028: a transição tem de 15 a 59 dias, é contígua, as chaves são únicas e crescentes, e o ciclo depois é o padrão do dia novo", () => {
+    const falhas: string[] = [];
+    for (let antigo = 1; antigo <= 28; antigo++) {
+      for (let novo = 1; novo <= 28; novo++) {
+        if (novo === antigo) continue;
+        for (let ano = 2026; ano <= 2028; ano++) {
+          for (let mes = 1; mes <= 12; mes++) {
+            const rotulo = `${antigo}→${novo} em ${ano}-${mes}`;
+            const inicio = `${ano}-${String(mes).padStart(2, "0")}-${String(antigo).padStart(2, "0")}`;
+            const anterior = standardCycle(inicio, antigo);
+            const transicao = cycleAfter(anterior.endsOn, novo);
+            const dias = totalDays(transicao);
+            if (dias < 15 || dias > 59) falhas.push(`${rotulo}: ${dias} dias`);
+
+            const cadeia: Ciclo[] = [anterior, transicao];
+            for (let i = 0; i < 3; i++) {
+              const ultimo = cadeia[cadeia.length - 1];
+              if (ultimo) cadeia.push(cycleAfter(ultimo.endsOn, novo));
+            }
+            for (let i = 1; i < cadeia.length; i++) {
+              const previo = cadeia[i - 1];
+              const atual = cadeia[i];
+              if (!previo || !atual) continue;
+              if (atual.startsOn !== addDays(previo.endsOn, 1))
+                falhas.push(`${rotulo}: buraco em ${atual.startsOn}`);
+              if (atual.key <= previo.key) falhas.push(`${rotulo}: chave ${atual.key} não cresce`);
+            }
+            const depoisDaTransicao = cadeia[2];
+            if (
+              depoisDaTransicao &&
+              !mesmoCiclo(depoisDaTransicao, standardCycle(depoisDaTransicao.startsOn, novo))
+            )
+              falhas.push(`${rotulo}: o ciclo depois não é o padrão do dia novo`);
+          }
+        }
+      }
+    }
+    expect(falhas).toEqual([]);
   });
 });
 

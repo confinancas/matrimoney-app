@@ -8,6 +8,7 @@ import { noSession, type SessionResolver } from "./household/context";
 import { apiError } from "./http/errors";
 import { healthRoute } from "./routes/health";
 import { householdRoutes } from "./routes/household";
+import { regrasRoutes, transacoesRoutes } from "./rules/routes";
 
 export type AppOptions = {
   onMeter?: (meter: Meter, c: Context<AppEnv>) => void;
@@ -56,6 +57,8 @@ export function createApp(options: AppOptions = {}): Hono<AppEnv> {
   app.route("/", healthRoute);
   app.route("/household", householdRoutes(options.resolveSession ?? noSession, options.agora));
   app.route("/categories", categoriesRoutes(options.resolveSession ?? noSession, options.agora));
+  app.route("/rules", regrasRoutes(options.resolveSession ?? noSession, options.agora));
+  app.route("/transactions", transacoesRoutes(options.resolveSession ?? noSession, options.agora));
 
   app.notFound((c) => apiError(c, 404, "rota_inexistente", "Rota não encontrada."));
 

@@ -334,6 +334,62 @@ describe("PATCH /api/household com mudança do dia de início", () => {
   });
 });
 
+describe("transição mínima pela rota (28 → 1, hoje 15/11/2026)", () => {
+  it("o calendário pula 2026-12; 28/11 e 15/12 ficam em 2026-11; 02/01 vai para 2027-01; nada que começa até 27/11 muda", async () => {
+    const lar = await criarLar(28);
+    const db = dbComMedidor();
+    const { itemId, contaId } = await criarItemEConta(lar.connectionId);
+    await ensureCalendar(db, lar.householdId, "2026-09-01", "2027-02-28");
+    await inserirContaCorrente(db, lar.householdId, itemId, contaId, [
+      { id: "[TEST] out05", data: "2026-10-05" },
+      { id: "[TEST] nov10", data: "2026-11-10" },
+      { id: "[TEST] nov28", data: "2026-11-28" },
+      { id: "[TEST] dez15", data: "2026-12-15" },
+      { id: "[TEST] jan02", data: "2027-01-02" },
+    ]);
+    await db.$client.batch(assignCycleKeysStmts(db, lar.householdId, { all: true }));
+    const antes = await calendarioDoBanco(lar.householdId);
+    expect(await cicloDe("[TEST] jan02")).toBe("2026-12");
+
+    const app = createApp({
+      resolveSession: async () => ({ memberId: lar.memberId, householdId: lar.householdId }),
+      agora: () => new Date("2026-11-15T15:00:00.000Z"),
+    });
+    const resposta = await callApi(app, "PATCH", "/api/household", { cycleStartDay: 1 });
+    expect(resposta.status).toBe(200);
+
+    const depois = await calendarioDoBanco(lar.householdId);
+    expect(depois.map((c) => c.key)).toEqual([
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2027-01",
+      "2027-02",
+      "2027-03",
+    ]);
+    expect(depois.find((c) => c.key === "2026-11")).toEqual({
+      key: "2026-11",
+      startsOn: "2026-11-28",
+      endsOn: "2026-12-31",
+    });
+    expect(depois.find((c) => c.key === "2027-01")).toEqual({
+      key: "2027-01",
+      startsOn: "2027-01-01",
+      endsOn: "2027-01-31",
+    });
+    expect(depois.filter((c) => c.startsOn <= "2026-11-27")).toEqual(
+      antes.filter((c) => c.startsOn <= "2026-11-27"),
+    );
+
+    expect(await cicloDe("[TEST] out05")).toBe("2026-09");
+    expect(await cicloDe("[TEST] nov10")).toBe("2026-10");
+    expect(await cicloDe("[TEST] nov28")).toBe("2026-11");
+    expect(await cicloDe("[TEST] dez15")).toBe("2026-11");
+    expect(await cicloDe("[TEST] jan02")).toBe("2027-01");
+  });
+});
+
 describe("custo pelo Meter", () => {
   it("PATCH com mudança do dia e 2.000 lançamentos [TEST]: poucas idas e nenhum comando com mais de 100 parâmetros", async () => {
     const lar = await criarLar(11);

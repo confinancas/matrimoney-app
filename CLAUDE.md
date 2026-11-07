@@ -62,4 +62,5 @@ Núcleo dos apps de finanças da Confinanças (o Matrimoney, para casais, e depo
 - **`rows_written` do D1:** conta as entradas de índice. Uma linha com dois índices sobre a coluna alterada conta mais que 1.
 - **Lista de ids sem limite:** `json_each(?)`, com o JSON num único parâmetro, como em `src/worker/cycle/assign.ts`. Evita os grupos de 90.
 - **Sonda do Pluggy:** `npm run -s pluggy:sonda`, porque o `-s` tira o cabeçalho do npm do stdout. As credenciais entram pelo terminal, nunca por arquivo. A fixture de 500 movimentos sai de `node tests/fixtures/pluggy/gerar-transactions-500.mjs`, seguida de `npx biome format --write` nela.
+- **Medidor e Drizzle:** as leituras pelo `select` do Drizzle contam em `calls` e `statements`, mas não em `rowsRead`. Para medir linhas lidas, use `prepare().all()` direto.
 - **Batch do Drizzle no D1:** `db.batch()` não aceita `db.run()` com SQL cru. Para SQL cru num batch, use `db.$client.batch(...)`, que é o binding medido.

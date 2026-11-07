@@ -309,6 +309,59 @@ export const categories = sqliteTable(
   ],
 );
 
+// Regras (TASK-0302): a correção do casal vira regra por alvo (estabelecimento ou destinatário). No máximo uma regra
+// ativa por alvo: o índice único parcial garante, inclusive em duas requisições juntas. Quando uma nova nasce, a ativa
+// do mesmo alvo recebe disabled_at no mesmo lote. set_* sem FK: as tabelas de fixed_incomes ainda não existem.
+export const rules = sqliteTable(
+  "rules",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id),
+    scope: text("scope").notNull(),
+    matchValue: text("match_value").notNull(),
+    setCustomName: text("set_custom_name"),
+    setCategoryId: text("set_category_id"),
+    setSpendType: text("set_spend_type"),
+    setIncomeKind: text("set_income_kind"),
+    setIncomeSubtype: text("set_income_subtype"),
+    setFixedIncomeId: text("set_fixed_income_id"),
+    setMovement: text("set_movement"),
+    createdFrom: text("created_from").notNull(),
+    createdBy: text("created_by").references(() => members.id),
+    createdAt: text("created_at").notNull(),
+    disabledAt: text("disabled_at"),
+  },
+  (t) => [
+    check(
+      "rules_scope_ck",
+      sql`${t.scope} IN ('estabelecimento', 'destinatario', 'remetente', 'conta_destino')`,
+    ),
+    check(
+      "rules_created_from_ck",
+      sql`${t.createdFrom} IN ('aplicar_todas', 'lembrar', 'confirmacao', 'manual')`,
+    ),
+    check(
+      "rules_spend_type_ck",
+      sql`${t.setSpendType} IS NULL OR ${t.setSpendType} IN ('fixos', 'conforto', 'educacao', 'extras', 'prazeres', 'metas', 'investimentos')`,
+    ),
+    check("rules_movement_ck", sql`${t.setMovement} IS NULL OR ${t.setMovement} = 'pagamento_fatura'`),
+    uniqueIndex("rules_active_match")
+      .on(t.householdId, t.scope, t.matchValue)
+      .where(sql`${t.disabledAt} IS NULL`),
+  ],
+);
+
+// Documento de regras da IA (TASK-0302 cria a tabela; a TASK-0305 edita o texto). Uma linha por lar.
+export const aiRulesDocument = sqliteTable("ai_rules_document", {
+  householdId: text("household_id")
+    .primaryKey()
+    .references(() => households.id),
+  text: text("text").notNull().default(""),
+  updatedAt: text("updated_at"),
+});
+
 // Convites, recuperações e o código de primeiro acesso (TASK-0101). Só o hash do código ou do token fica aqui.
 // O primeiro_acesso não tem lar ainda (household_id nulo) e não expira: vale até ser usado ou substituído.
 export const invites = sqliteTable(

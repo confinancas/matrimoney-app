@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { GreenTop } from "@/components/ui/green-top";
 import { SkeletonCard } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   buildCategoryTree,
@@ -14,10 +15,19 @@ import {
   filtrarCategorias,
 } from "../../../shared/categories";
 import { fetchCategories } from "../../api/categories";
+import {
+  applyRetroactive,
+  type Categorizacao,
+  fetchCategorization,
+  saveTransactionCategory,
+} from "../../api/rules";
 import { destinoDeVoltar } from "../../app/frame/aba";
 import { useRotaAtual } from "../../app/rota-atual";
 import { ApiError } from "../../lib/api";
 import { caminhoSeguro } from "./voltar";
+
+// Voltas do retroativo numa mesma tela: cada volta grava até 2.000 linhas; o limite evita laço sem fim.
+const MAXIMO_DE_VOLTAS = 50;
 
 type LinhaProps = {
   categoria: CategoryDTO;
@@ -75,13 +85,47 @@ export function EscolherCategoria() {
   const [selecionada, setSelecionada] = useState<string | null>(() =>
     typeof criadaAgora === "string" ? criadaAgora : params.get("selecionada"),
   );
-  const sugerida = params.get("sugerida");
+  // Com transacao, a compra traz a categoria e a sugestão da IA; sem ela, o seletor segue como na TASK-0301.
+  const transacao = params.get("transacao");
+  const [categorizacao, setCategorizacao] = useState<Categorizacao | null>(null);
+  const [falhaCategorizacao, setFalhaCategorizacao] = useState(false);
+  const [aplicarTodas, setAplicarTodas] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erroSalvar, setErroSalvar] = useState(false);
+  const [progresso, setProgresso] = useState<number | null>(null);
+  const [falhaRetroativo, setFalhaRetroativo] = useState<string | null>(null);
+  const sugerida = categorizacao?.aiCategoryId ?? params.get("sugerida");
   const voltar = caminhoSeguro(params.get("voltar"));
   const caminhoAtual = `${localizacao.pathname}${localizacao.search}`;
 
   const [categorias, setCategorias] = useState<CategoryDTO[] | null>(null);
   const [falha, setFalha] = useState<ApiError | null>(null);
   const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    if (transacao === null) return;
+    let ativa = true;
+    fetchCategorization(transacao).then(
+      (dados) => {
+        if (!ativa) return;
+        setCategorizacao(dados);
+        setSelecionada((atual) => atual ?? dados.categoryId);
+      },
+      () => {
+        if (ativa) setFalhaCategorizacao(true);
+      },
+    );
+    return () => {
+      ativa = false;
+    };
+  }, [transacao]);
+
+  // O switch vale só para compra (estabelecimento com rótulo), e liga por padrão.
+  const podeAplicarATodas =
+    categorizacao !== null &&
+    categorizacao.scope === "estabelecimento" &&
+    (categorizacao.matchLabel ?? "") !== "";
+  const aplicar = podeAplicarATodas && aplicarTodas;
 
   // Cada carga tem um número: só a última ainda vale (a que ficou para trás não mostra nada).
   const partida = useRef(0);
@@ -114,10 +158,60 @@ export function EscolherCategoria() {
     return `/categorias/nova?${new URLSearchParams({ ...extra, voltar: caminhoAtual }).toString()}`;
   }
 
-  function salvar() {
-    if (selecionada === null) return;
-    if (voltar !== null) navegar(voltar, { state: { categoriaEscolhida: selecionada } });
+  // Volta com a categoria escolhida (sem estado, se não há voltar).
+  function concluir(categoria: string) {
+    if (voltar !== null) navegar(voltar, { state: { categoriaEscolhida: categoria } });
     else navegar(-1);
+  }
+
+  // Repete a fatia do retroativo até zerar. Falha no meio: fica o "Tentar de novo". Se outra regra assumiu o
+  // estabelecimento (409), esta termina e volta: a outra cuida do resto.
+  async function continuarRetroativo(regraId: string, categoria: string): Promise<void> {
+    setFalhaRetroativo(null);
+    for (let volta = 0; volta < MAXIMO_DE_VOLTAS; volta++) {
+      try {
+        const fatia = await applyRetroactive(regraId);
+        setProgresso(fatia.remaining);
+        if (fatia.remaining <= 0) {
+          concluir(categoria);
+          return;
+        }
+      } catch (erro) {
+        if (erro instanceof ApiError && erro.code === "regra_inativa") {
+          concluir(categoria);
+          return;
+        }
+        setFalhaRetroativo(regraId);
+        return;
+      }
+    }
+    setFalhaRetroativo(regraId);
+  }
+
+  async function salvar() {
+    if (selecionada === null || salvando) return;
+    if (transacao === null) {
+      concluir(selecionada);
+      return;
+    }
+    setSalvando(true);
+    setErroSalvar(false);
+    try {
+      const resultado = await saveTransactionCategory(transacao, {
+        categoryId: selecionada,
+        applyToAll: aplicar,
+      });
+      if (resultado.rule !== null && resultado.retroactive !== null && resultado.retroactive.remaining > 0) {
+        setProgresso(resultado.retroactive.remaining);
+        await continuarRetroativo(resultado.rule.id, selecionada);
+        return;
+      }
+      concluir(selecionada);
+    } catch {
+      setErroSalvar(true);
+    } finally {
+      setSalvando(false);
+    }
   }
 
   const lista = (() => {
@@ -242,10 +336,77 @@ export function EscolherCategoria() {
         <div className="min-w-0 tablet:col-start-1 tablet:row-start-2 desktop:col-start-2 desktop:row-start-1">
           {lista}
         </div>
+
+        {transacao !== null && (
+          <div className="flex min-w-0 flex-col gap-3 tablet:col-start-1 tablet:row-start-3 desktop:col-start-3 desktop:row-start-1">
+            {falhaCategorizacao && (
+              <p role="alert" className="rounded-[18px] bg-card px-4 py-3 text-[14px] text-ink shadow-card">
+                Não deu para carregar esta compra.
+              </p>
+            )}
+            {erroSalvar && (
+              <p role="alert" className="rounded-[18px] bg-card px-4 py-3 text-[14px] text-ink shadow-card">
+                Não deu para salvar. Tente de novo.
+              </p>
+            )}
+            {podeAplicarATodas && categorizacao !== null && (
+              <section
+                aria-label="Aplicar a todas"
+                className="flex flex-col gap-3 rounded-[24px] bg-card px-[22px] py-[18px] shadow-card"
+              >
+                <div className="flex min-h-11 items-center justify-between gap-4">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[15px] font-semibold text-ink">
+                      Aplicar a todas de {categorizacao.matchLabel}
+                    </span>
+                    <span className="text-[12px] leading-[1.45] text-ink-2">
+                      Vale para as compras antigas e as próximas. Vira regra para a IA.
+                    </span>
+                  </div>
+                  <Switch
+                    checked={aplicarTodas}
+                    onCheckedChange={setAplicarTodas}
+                    disabled={salvando}
+                    label="Aplicar a todas as compras deste estabelecimento"
+                  />
+                </div>
+                {progresso !== null && falhaRetroativo === null && (
+                  <p role="status" className="text-[13px] text-ink-2">
+                    Aplicando às compras antigas… faltam {progresso}
+                  </p>
+                )}
+                {falhaRetroativo !== null && (
+                  <div className="flex flex-col gap-2.5">
+                    <p role="alert" className="text-[13px] font-semibold text-ink">
+                      Não deu para aplicar a todas as compras antigas agora.
+                    </p>
+                    <p className="text-[12px] leading-[1.45] text-ink-2">
+                      A regra já vale para as próximas compras.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => void continuarRetroativo(falhaRetroativo, selecionada ?? "")}>
+                        Tentar de novo
+                      </Button>
+                      <Button variant="secondary" onClick={() => concluir(selecionada ?? "")}>
+                        Deixar para depois
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        )}
       </div>
 
       <footer className="border-t border-divider bg-card px-4 pt-3 pb-7 tablet:flex tablet:justify-end tablet:px-6 tablet:pt-3.5 tablet:pb-[18px]">
-        <Button full disabled={selecionada === null} onClick={salvar} className="tablet:w-[360px]">
+        <Button
+          full
+          disabled={selecionada === null || salvando}
+          loading={salvando}
+          onClick={() => void salvar()}
+          className="tablet:w-[360px]"
+        >
           Salvar categoria
         </Button>
       </footer>

@@ -20,7 +20,7 @@ const MARGEM_PAR = 5;
 const DIAS_CONCILIACAO = 15;
 
 const COLUNAS = `id, account_id, card_id, movement, movement_original, movement_locked, hidden, removed_at,
-  categorized_by, categorized_at, income_kind, income_subtype, local_date, amount_cents, original_description,
+  categorized_by, categorized_at, rule_id, income_kind, income_subtype, local_date, amount_cents, original_description,
   provider_category, provider_operation_type, counterparty_doc_masked`;
 
 const SQL_CPFS =

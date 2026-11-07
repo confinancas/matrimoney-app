@@ -40,6 +40,7 @@ export type LinhaClassificavel = {
   removed_at: string | null;
   categorized_by: string | null;
   categorized_at: string | null;
+  rule_id: string | null;
   income_kind: string | null;
   income_subtype: string | null;
   local_date: string;
@@ -70,6 +71,7 @@ export type Regra =
   | "R5"
   | "R6"
   | "sem-regra"
+  | "marca-alheia"
   | "protegida";
 
 export type Decisao = {
@@ -235,14 +237,24 @@ const eMarcaPropria = (linha: LinhaClassificavel): boolean =>
   linha.income_kind === "transferencia" ||
   (linha.income_kind === "variavel" && linha.income_subtype === "rendimento");
 
+// Procedência da marca (TASK-0302, correção da TASK-0207): a classificação grava categorized_by = 'regra' com rule_id
+// nulo. Regra do casal grava rule_id; a IA grava 'ia'; o membro grava o id dele. Só a marca de procedência própria
+// pode ser desfeita; a da IA e a do casal nunca são.
+export const minhaMarca = (linha: LinhaClassificavel): boolean =>
+  linha.categorized_by === "regra" && linha.rule_id === null;
+
+// Linha que a classificação pode reescrever sem desfazer escolha de ninguém: sem marca, ou com a marca própria.
+export const ehDaClassificacao = (linha: LinhaClassificavel): boolean =>
+  linha.categorized_by === null || minhaMarca(linha);
+
 const mantem = (linha: LinhaClassificavel): Pick<Desejado, "income_kind" | "income_subtype"> => ({
   income_kind: linha.income_kind,
   income_subtype: linha.income_subtype,
 });
 
-// Tira só a marca da própria classificação; a renda que outro caminho marcou fica como está.
+// Tira só a marca da própria classificação; a renda que outro caminho marcou (IA, regra do casal) fica como está.
 const semMarcaPropria = (linha: LinhaClassificavel): Pick<Desejado, "income_kind" | "income_subtype"> =>
-  eMarcaPropria(linha) ? { income_kind: null, income_subtype: null } : mantem(linha);
+  minhaMarca(linha) && eMarcaPropria(linha) ? { income_kind: null, income_subtype: null } : mantem(linha);
 
 const transferencia = { income_kind: "transferencia", income_subtype: null };
 
@@ -273,15 +285,20 @@ export function classify(linhas: readonly LinhaClassificavel[], ctx: ContextoCla
   const saidasParaPar = vivas.filter((linha) => eSaidaBanco(linha) && SAIDA_R1.has(origemDe(linha)));
   const pareadas = new Set<string>();
   const porId = new Map(vivas.map((linha) => [linha.id, linha]));
+  // A volta atrás do R2 (terceiro → par, par → terceiro) só alcança a linha de cartão da própria classificação;
+  // a marca da IA ou do casal fica. O par ainda conta como prova para a saída da conta.
   for (const { cartao, banco } of pairBillPayments(cartoes, saidasParaPar)) {
     pareadas.add(cartao);
     pareadas.add(banco);
-    resolvidas.set(cartao, { movement: "pagamento_fatura", ...transferencia, regra: "R2-par" });
+    const linhaCartao = porId.get(cartao);
+    if (linhaCartao && ehDaClassificacao(linhaCartao)) {
+      resolvidas.set(cartao, { movement: "pagamento_fatura", ...transferencia, regra: "R2-par" });
+    }
     const saida = porId.get(banco);
     if (saida) reivindica(saida, { movement: "pagamento_fatura", ...mantem(saida), regra: "R2-par" });
   }
   for (const cartao of cartoes) {
-    if (pareadas.has(cartao.id)) continue;
+    if (pareadas.has(cartao.id) || !ehDaClassificacao(cartao)) continue;
     const terceiro = diaNumero(cartao.local_date) <= hojeNumero - 5;
     resolvidas.set(cartao.id, {
       movement: terceiro ? "pix_recebido" : "pagamento_fatura",
@@ -370,6 +387,10 @@ export function classify(linhas: readonly LinhaClassificavel[], ctx: ContextoCla
     }
     const desejado = resolvidas.get(linha.id);
     if (desejado) return { id: linha.id, ...desejado };
+    // Marca da IA ou do casal sem regra que a reivindique: o movimento e a marca ficam como estão.
+    if (!ehDaClassificacao(linha)) {
+      return { id: linha.id, movement: linha.movement, ...mantem(linha), regra: "marca-alheia" };
+    }
     return { id: linha.id, movement: origemDe(linha), ...semMarcaPropria(linha), regra: "sem-regra" };
   });
 }
